@@ -258,7 +258,8 @@ def fix_encoding_bugs(word: str) -> str:
     
     return word
 
-def convert(pdf_path: str, page_breaks: bool = False) -> str:
+def _build_parse_result(pdf_path: str) -> ParseResult:
+    """Extract text, tables and metadata from a PDF into a ParseResult."""
     doc = fitz.open(pdf_path)
     pages = []
     
@@ -456,5 +457,24 @@ def convert(pdf_path: str, page_breaks: bool = False) -> str:
         # Don't sort here - let the pipeline handle ordering (tables have .y attribute)
         
         pages.append(Page(index=i, items=all_items))
-    
-    return Pipeline().run(ParseResult(pages=pages, metadata=parsed_meta), page_breaks=page_breaks)
+
+    return ParseResult(pages=pages, metadata=parsed_meta)
+
+
+def convert(pdf_path: str, page_breaks: bool = False) -> str:
+    """Convert a PDF to a single markdown string."""
+    return Pipeline().run(_build_parse_result(pdf_path), page_breaks=page_breaks)
+
+
+def convert_pages(pdf_path: str) -> list:
+    """Convert a PDF and return one markdown string per page (0-indexed).
+
+    Useful when per-page content is needed, e.g.:
+        pages = convert_pages("paper.pdf")
+        page_map = {(i + 1, ""): text for i, text in enumerate(pages)}
+    """
+    parse_result = _build_parse_result(pdf_path)
+    pipeline = Pipeline()
+    for proc in pipeline.processors:
+        parse_result = proc.transform(parse_result)
+    return pipeline.render_pages(parse_result)

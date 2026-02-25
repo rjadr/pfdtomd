@@ -1,6 +1,6 @@
 # pdftomd
 
-**pdftomd** is a Python port of the `opengovsg/pdf2md` library, enhanced with pro-level features that surpass the original. It uses geometric heuristics and statistical analysis of PDF coordinates to reconstruct structural Markdown.
+**pdftomd** is a Python port of the [`opengovsg/pdf2md`](https://github.com/opengovsg/pdf2md) library, enhanced with pro-level features that surpass the original. It uses geometric heuristics and statistical analysis of PDF coordinates to reconstruct structural Markdown.
 
 ## Features
 
@@ -56,4 +56,8 @@ print(md)
 
 # With page break separators
 md = pdftomd.convert("my_document.pdf", page_breaks=True)
+
+# Per-page content (returns list[str], one string per page)
+pages = pdftomd.convert_pages("my_document.pdf")
+page_map = {(i + 1, ""): text for i, text in enumerate(pages)}
 ```

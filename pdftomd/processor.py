@@ -27,13 +27,11 @@ class Pipeline:
             FootnoteLinker(),   # Semantic footnote linking (Pro Feature #4)
         ]
 
-    def run(self, result: ParseResult, page_breaks: bool = False) -> str:
-        for proc in self.processors:
-            result = proc.transform(result)
-            
+    def render_pages(self, result: ParseResult) -> list:
+        """Return a list of per-page markdown strings (after pipeline processing)."""
         max_font = result.globals.get('max_height_font', '')
         pages_output = []
-        
+
         for page in result.pages:
             page_blocks = []
             for block in page.items:
@@ -141,15 +139,19 @@ class Pipeline:
                 page_blocks.append(f"{prefix}{content}{suffix}")
             
             # Join blocks within a page with double newline (matching JS ToMarkdown)
-            pages_output.append("\n\n".join(page_blocks))
-        
+            page_md = "\n\n".join(page_blocks)
+            if HAS_FTFY:
+                page_md = ftfy.fix_text(page_md)
+            pages_output.append(page_md)
+
+        return pages_output
+
+    def run(self, result: ParseResult, page_breaks: bool = False) -> str:
+        for proc in self.processors:
+            result = proc.transform(result)
+
+        pages = self.render_pages(result)
+
         # Join pages — optionally separated by horizontal rules
         page_sep = "\n\n---\n\n" if page_breaks else "\n"
-        final_md = page_sep.join(pages_output)
-        
-        # Apply ftfy ONCE to the final result for any remaining Unicode issues
-        # This is much more efficient than calling it per-word
-        if HAS_FTFY:
-            final_md = ftfy.fix_text(final_md)
-        
-        return final_md
+        return page_sep.join(pages)
