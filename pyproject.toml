@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdftomd"
+version = "0.2.0"
+description = "A heuristic-based PDF to Markdown converter (Full Python Port of opengovsg/pdf2md)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pymupdf>=1.23.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "ftfy>=6.0.0"
+]
+
+[project.scripts]
+pdftomd = "pdftomd.__main__:app"
+
+[tool.setuptools.packages.find]
+include = ["pdftomd*"]
+exclude = ["pdf2md*"]
