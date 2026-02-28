@@ -12,21 +12,22 @@ DEFAULT_WORKERS = min(4, os.cpu_count() or 1)
 
 @app.command()
 def main(
-    input_path: str = typer.Argument(..., help="PDF file or folder"),
-    output: str = typer.Option(None, "--output", "-o"),
-    recursive: bool = typer.Option(False, "--recursive", "-r"),
-    workers: int = typer.Option(DEFAULT_WORKERS, "--workers", "-w", help="Parallel workers for bulk conversion")
+    input_path: str = typer.Argument(..., help="PDF file or folder to convert"),
+    output: str = typer.Option(None, "--output", "-o", help="Output file (single PDF) or folder (bulk)"),
+    recursive: bool = typer.Option(False, "--recursive", "-r", help="Recurse into subdirectories"),
+    workers: int = typer.Option(DEFAULT_WORKERS, "--workers", "-w", help="Parallel workers for bulk conversion"),
+    page_breaks: bool = typer.Option(False, "--page-breaks", help="Insert --- between pages"),
 ):
     if os.path.isfile(input_path):
-        _run_file(input_path, output)
+        _run_file(input_path, output, page_breaks)
     else:
         _run_dir(input_path, output, recursive, workers)
 
-def _run_file(path, out):
+def _run_file(path, out, page_breaks=False):
     out = out or os.path.splitext(path)[0] + ".md"
     with Progress(SpinnerColumn(), TextColumn("[cyan]Converting {task.fields[fn]}..."), console=console) as p:
         p.add_task("", fn=os.path.basename(path))
-        md = convert(path)
+        md = convert(path, page_breaks=page_breaks)
         with open(out, "w", encoding="utf-8") as f: f.write(md)
     console.print(f"[bold green]✓[/] Created: {out}")
 
