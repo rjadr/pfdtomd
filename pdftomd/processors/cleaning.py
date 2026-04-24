@@ -148,3 +148,119 @@ class RepetitiveElementRemover:
                 page.items = new_items
 
         return result
+
+
+# ─── v0.5 New processor ──────────────────────────────────────────────────────
+
+class RunningElementTemplateInferer:
+    """Infer recurring page-template elements (running headers, footers,
+    page numbers) using fuzzy position + style + text clustering, then remove
+    them.
+
+    Improvements over RepetitiveElementRemover:
+    • Uses page height from Page.height (accurate)  rather than max-y heuristic
+    • Clusters by (zone, style-signature, fuzzy-text) to catch alternating
+      odd/even headers that each appear on ~50 % of pages
+    • Configurable zone height (top 10 %, bottom 8 %) instead of hard px values
+    • Minimum 2-page occurrence before removal (prevents removing unique lines)
+    """
+
+    TOP_ZONE_FRAC    = 0.10   # Top 10 % of page
+    BOTTOM_ZONE_FRAC = 0.92   # Bottom 8 % of page
+    THRESHOLD_FRAC   = 0.30   # Appear on ≥ 30 % of pages → remove
+    MIN_PAGES        = 2      # Must appear on at least this many pages
+
+    def transform(self, result: ParseResult) -> ParseResult:
+        if len(result.pages) < 2:
+            return result
+
+        n_pages = len(result.pages)
+
+        # ── collect zone-line candidates ───────────────────────────────────────
+        # key: (zone, parity, x_bucket, style_sig, norm_text) → set of page indices
+        zone_pages: dict = {}
+
+        for page in result.pages:
+            W = getattr(page, 'width',  595.0)
+            H = getattr(page, 'height', 842.0)
+            top_thresh = H * self.TOP_ZONE_FRAC
+            bot_thresh = H * self.BOTTOM_ZONE_FRAC
+
+            for item in page.items:
+                if not isinstance(item, LineItem):
+                    continue
+                txt  = item.get_text().strip()
+                if not txt or len(txt) < 2:
+                    continue
+                norm = self._normalize(txt)
+                if not norm or norm.isdigit():
+                    continue
+
+                if item.y < top_thresh:
+                    zone = "top"
+                elif item.y > bot_thresh:
+                    zone = "bot"
+                else:
+                    continue
+
+                parity = "odd" if (page.index + 1) % 2 else "even"
+                x_bucket = round(item.x / max(W, 1), 2)
+                style_sig = (
+                    round(getattr(item, 'height', 0.0), 1),
+                    self._normalize_font(getattr(item, 'font', '')),
+                    int(getattr(item, 'color', 0)),
+                )
+
+                key = (zone, parity, x_bucket, style_sig, norm)
+                zone_pages.setdefault(key, set()).add(page.index)
+
+        # ── determine which texts to remove ───────────────────────────────────
+        threshold = max(self.MIN_PAGES, n_pages * self.THRESHOLD_FRAC)
+        to_remove: set = {key for key, pages in zone_pages.items()
+                          if len(pages) >= threshold}
+
+        if not to_remove:
+            return result
+
+        # ── remove matching line items ─────────────────────────────────────────
+        for page in result.pages:
+            H = getattr(page, 'height', 842.0)
+            top_thresh = H * self.TOP_ZONE_FRAC
+            bot_thresh = H * self.BOTTOM_ZONE_FRAC
+            new_items  = []
+            for item in page.items:
+                if isinstance(item, LineItem):
+                    txt  = item.get_text().strip()
+                    norm = self._normalize(txt)
+                    parity = "odd" if (page.index + 1) % 2 else "even"
+                    x_bucket = round(item.x / max(getattr(page, 'width', 595.0), 1), 2)
+                    style_sig = (
+                        round(getattr(item, 'height', 0.0), 1),
+                        self._normalize_font(getattr(item, 'font', '')),
+                        int(getattr(item, 'color', 0)),
+                    )
+                    if item.y < top_thresh and ("top", parity, x_bucket, style_sig, norm) in to_remove:
+                        continue
+                    if item.y > bot_thresh and ("bot", parity, x_bucket, style_sig, norm) in to_remove:
+                        continue
+                new_items.append(item)
+            page.items = new_items
+
+        return result
+
+    @staticmethod
+    def _normalize(text: str) -> str:
+        """Normalise text for fuzzy deduplication: upper-case, strip non-alphanum."""
+        import re
+        t = ''.join(c for c in text if not (0x2000 <= ord(c) <= 0x200B or c in '\t\xa0'))
+        return re.sub(r'[^A-Z0-9]', '', t.upper())
+
+    @staticmethod
+    def _normalize_font(font: str) -> str:
+        """Normalise font id for template grouping across subset prefixes."""
+        if not font:
+            return ""
+        f = font.upper()
+        if '+' in f:
+            f = f.split('+', 1)[1]
+        return ''.join(ch for ch in f if ch.isalnum())[:32]

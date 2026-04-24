@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdftomd"
-version = "0.2.0"
-description = "A heuristic-based PDF to Markdown converter (Full Python Port of opengovsg/pdf2md)"
+version = "0.6.0"
+description = "A heuristic-based PDF to Markdown converter using PyMuPDF"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
