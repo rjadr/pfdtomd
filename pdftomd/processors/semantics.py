@@ -841,6 +841,10 @@ class FootnoteAssignmentSolver:
 
     def transform(self, result: ParseResult) -> ParseResult:
         base_h = result.globals.get('most_used_height', 10)
+        # Track assigned footnote numbers across the whole document so that
+        # undetected table rows with coincidentally matching numbers (e.g. row
+        # "10 Gingham 3.8 …") cannot produce duplicate [^10]: definitions.
+        seen_fn_numbers: set = set()
 
         for page in result.pages:
             blocks = [b for b in page.items if isinstance(b, LineBlock)]
@@ -874,8 +878,17 @@ class FootnoteAssignmentSolver:
 
                 split_blocks = self._split_footnote_block(item)
                 for b in split_blocks:
+                    b_txt = b.get_text().strip()
+                    m = self._FN_MATCH.match(b_txt)
+                    fn_num = m.group(1) if (m and m.group(1)) else None
+                    if fn_num and fn_num in seen_fn_numbers:
+                        # Duplicate number: keep as paragraph to avoid double defs.
+                        new_items.append(b)
+                        continue
                     b.block_type = BlockType.FOOTNOTE
-                new_items.extend(split_blocks)
+                    if fn_num:
+                        seen_fn_numbers.add(fn_num)
+                    new_items.append(b)
 
             page.items = new_items
 

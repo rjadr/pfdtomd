@@ -806,6 +806,38 @@ class BlockBoundaryScorer:
         if continuation:
             base = min(base, 0.30)
 
+        # ── Hanging-indent boundary (multi-line entries) ──────────────────────
+        # Bibliography / reference-list entries use hanging indent: first line
+        # flush (x=51), continuations indented (x=68).  The next entry resets
+        # to flush — that 68→51 dedent (next line steps LEFT) is the boundary.
+        # Guard: only fire when the content isn't a mid-sentence continuation
+        # (otherwise we'd split first-line-indented body paragraphs where the
+        # first line sits right of the margin).
+        if b.x < a.x - 5 and not continuation and gap > 0:
+            base = max(base, 0.75)
+
+        # ── Same-x consecutive-entry boundary (single-line entries) ───────────
+        # When both lines sit at the same left margin, the current line ends with
+        # a full-stop, the next starts with an uppercase letter, and both use a
+        # smaller font than body text, they are almost certainly adjacent single-
+        # line bibliography entries (e.g. "Griffero … 2014.\nGunkel …").
+        #
+        # Guards that prevent false splits:
+        #   • b must start with uppercase (rules out page ranges like "192–208.")
+        #   • current line must not end with an abbreviation period ("p.", "vol.",
+        #     "ed.", "no.") — those are mid-entry breaks, not entry boundaries
+        #   • is_small_font: only fire for footnote/bibliography font sizes, not
+        #     body text (avoids splitting paragraphs at sentence boundaries)
+        import re as _re
+        is_small_font    = a.height < body_h - 0.5 and b.height < body_h - 0.5
+        b_upper_start    = bool(b_text and b_text[0].isupper())
+        is_abbrev_end    = bool(_re.search(r'\b[a-z]{1,3}\.$', a_text))
+        same_x_punct     = (abs(a.x - b.x) < 3 and punct_end and b_upper_start
+                            and not lower_cont and gap_ratio > 0.6
+                            and not is_abbrev_end)
+        if same_x_punct and is_small_font:
+            base = max(base, 0.65)
+
         return base
 
 
