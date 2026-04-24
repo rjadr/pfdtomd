@@ -177,7 +177,10 @@ class Pipeline:
                     # The footnote number may be bold/italic (e.g., "**1**" or "_1_").
                     # Strip markdown formatting markers before extracting the number.
                     clean = re.sub(r'^[\*_\[\]\^]+(\d+)[\*_\[\]\^]*\s*', r'\1 ', content)
-                    content = re.sub(r"^\(?\^?(\d+)\)?\s*", r"\1]: ", clean)
+                    # Cap at 3 digits + non-digit lookahead: prevents a stray year
+                    # or page-range number (e.g. 1978, 255) that somehow survived
+                    # classification from being emitted as [^1978]: or [^255]:.
+                    content = re.sub(r"^\(?\^?(\d{1,3})(?!\d)\)?\s*", r"\1]: ", clean)
                     prefix = "[^"
                 
                 page_blocks.append(f"{prefix}{content}{suffix}")

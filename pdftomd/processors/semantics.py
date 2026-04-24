@@ -534,8 +534,8 @@ class FootnoteLinker:
     (significantly smaller than body text). Also splits merged footnotes
     (e.g., when footnotes 14, 15, 16 were grouped into one block by GatherBlocks).
     """
-    _FN_START = re.compile(r'^\(?\d{1,3}\)?\s+\S')
-    _FN_MATCH = re.compile(r'^\(?(\d{1,3})\)?\.?\s+(.+)')
+    _FN_START = re.compile(r'^\(?\d{1,3}(?!\d)\)?\s+\S')
+    _FN_MATCH = re.compile(r'^\(?(\d{1,3})(?!\d)\)?\.?\s+(.+)')
 
     def transform(self, result: ParseResult) -> ParseResult:
         base_h = result.globals.get('most_used_height', 10)
@@ -833,8 +833,11 @@ class FootnoteAssignmentSolver:
     3. Splits on any new footnote start (number or letter pattern).
     """
 
-    _FN_START = re.compile(r'^\(?[\d]{1,3}|^[\*†‡§]|^\(?[a-z]\)\s')
-    _FN_MATCH = re.compile(r'^\(?(\d{1,3})\)?\.?\s+(.+)|^([\*†‡§])\s*(.+)')
+    # Require a word-boundary after the digits ((?!\d)) so that years (1978),
+    # page ranges (255–275), DOI fragments (514517) and URL numbers (69382)
+    # that begin a wrapped continuation line are never mistaken for a new footnote.
+    _FN_START = re.compile(r'^\(?(\d{1,3})(?!\d)\)?\.?\s+\S|^[\*†‡§]|^\(?[a-z]\)\s')
+    _FN_MATCH = re.compile(r'^\(?(\d{1,3})(?!\d)\)?\.?\s+(.+)|^([\*†‡§])\s*(.+)')
 
     def transform(self, result: ParseResult) -> ParseResult:
         base_h = result.globals.get('most_used_height', 10)

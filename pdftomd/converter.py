@@ -891,7 +891,12 @@ def _build_parse_result(pdf_path: str) -> ParseResult:
                     is_super = False
                     text_content = s["text"].strip()
                     # Only mark as superscript if it's a number and positioned higher than baseline
-                    if text_content.isdigit() and spans_data and span_y < primary_y - (primary_size * 0.3):
+                    # Guard: real footnote numbers are ≤ 3 digits.
+                    # Years (1978), page numbers (255+), DOI/URL fragments (514517)
+                    # that happen to sit slightly above the baseline must not become
+                    # inline [^N] links.
+                    if (text_content.isdigit() and len(text_content) <= 3
+                            and spans_data and span_y < primary_y - (primary_size * 0.3)):
                         is_super = True
                     
                     raw_text_parts = s["text"].split(" ")
